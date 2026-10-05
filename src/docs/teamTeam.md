@@ -9,3 +9,11 @@ Keep event creation on one form. Ask for an event name, a week starting date, a 
 Use Firebase Realtime Database so people opening the same event link share responses. Use anonymous Firebase Authentication so participants can enter a name without an account form and can update only their own response. Keep the event link visible. Show loading and save errors.
 
 Keep the implementation small and use plain forms and a table. Do not add comments, themes, voting, calendar integrations, or recommendation features. Use the existing Firebase Hosting target named when2meet. Show the code and local preview before publishing the app.
+
+## AI transcript review
+
+The AI did not follow the request to keep the implementation minimal. It suggested unnecessary styling and changes, so I had to narrow the scope several times. I could not use its code as it was, and reviewing unnecessary changes added work.
+
+The AI selected and read several code and configuration files as it worked. The initial environment allowed file access and command execution without separate approval. Starting with broad permissions before limiting the scope was also a problem.
+
+While reviewing the conversation, I felt that I could not rely on the AI to judge which changes were necessary. I needed to limit the scope and permissions at the start and check each change myself.
