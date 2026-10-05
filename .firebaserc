@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "cs392-react-challenges-3d0d7"
+  },
+  "targets": {
+    "cs392-react-challenges-3d0d7": {
+      "hosting": {
+        "when2meet": [
+          "cs392-beat-when2meet"
+        ]
+      }
+    }
+  }
+}
