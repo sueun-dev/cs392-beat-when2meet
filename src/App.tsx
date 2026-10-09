@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { onValue, push, ref, set } from 'firebase/database';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { onValue, push, ref, set, update } from 'firebase/database';
 import { database, session } from './firebase';
 import './App.css';
 
@@ -30,6 +30,8 @@ const App = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [dragSlots, setDragSlots] = useState<Record<string, boolean> | null>(null);
+  const drag = useRef<{ selected: boolean; changes: Record<string, boolean | null> } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -97,17 +99,31 @@ const App = () => {
 
   const currentPerson = meeting?.people?.[userId];
   const people = Object.values(meeting?.people || {});
-  const toggleSlot = async (key: string) => {
+  const saveSlots = async (changes: Record<string, boolean | null>) => {
     if (!currentPerson || saving) return;
     setSaving(true);
     setMessage('');
     try {
-      await set(ref(database, `meetings/${eventId}/people/${userId}/slots/${key}`), currentPerson.slots?.[key] ? null : true);
+      await update(ref(database, `meetings/${eventId}/people/${userId}/slots`), changes);
     } catch {
       setMessage('Could not save this time. Please try again.');
     } finally {
       setSaving(false);
+      setDragSlots(null);
     }
+  };
+
+  const paintSlot = (key: string) => {
+    const selection = drag.current;
+    if (!selection || key in selection.changes) return;
+    selection.changes[key] = selection.selected ? true : null;
+    setDragSlots((slots) => ({ ...slots, [key]: selection.selected }));
+  };
+
+  const finishDrag = () => {
+    const selection = drag.current;
+    drag.current = null;
+    if (selection) void saveSlots(selection.changes);
   };
 
   const times = meeting ? Array.from(
@@ -148,9 +164,18 @@ const App = () => {
             <button type="submit" disabled={saving}>{currentPerson ? 'Update name' : 'Use name'}</button>
           </form>
           <p>Participants: {people.map((person) => person.name).join(', ') || 'None yet'}</p>
-          <p>{currentPerson ? `Editing ${currentPerson.name}. Click a time to select or clear it.` : 'Enter your name to mark availability.'}</p>
+          <p>{currentPerson ? `Editing ${currentPerson.name}. Click or drag times to select or clear them.` : 'Enter your name to mark availability.'}</p>
           <p>A check marks your selection. Each cell shows the number of people available.</p>
-          <div className="time-table">
+          <div className="time-table"
+            onPointerMove={(event) => {
+              if (!drag.current) return;
+              const slot = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLButtonElement>('button[data-slot]');
+              if (slot && event.currentTarget.contains(slot)) paintSlot(slot.dataset.slot!);
+            }}
+            onPointerUp={finishDrag}
+            onLostPointerCapture={finishDrag}
+            onPointerCancel={() => { drag.current = null; setDragSlots(null); }}
+          >
             <table>
               <thead><tr><th scope="col">Time</th>{meeting.dates.map((date) => (
                 <th scope="col" key={date}>{new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</th>
@@ -160,8 +185,9 @@ const App = () => {
                   <th scope="row">{timeLabel(time)} to {timeLabel(Math.min(time + meeting.step, meeting.end))}</th>
                   {meeting.dates.map((date) => {
                     const key = `${date}:${time}`;
-                    const selected = currentPerson?.slots?.[key] || false;
-                    const count = people.filter((person) => person.slots?.[key]).length;
+                    const selected = (dragSlots || currentPerson?.slots)?.[key] || false;
+                    const count = people.filter((person) => person.slots?.[key]).length
+                      + Number(selected) - Number(Boolean(currentPerson?.slots?.[key]));
                     return (
                       <td key={date}>
                         <button
@@ -169,7 +195,19 @@ const App = () => {
                           disabled={!currentPerson || saving}
                           aria-pressed={selected}
                           aria-label={`${date} ${timeLabel(time)}, ${count} of ${people.length} available`}
-                          onClick={() => toggleSlot(key)}
+                          data-slot={key}
+                          onPointerDown={(event) => {
+                            if (event.button !== 0 || !currentPerson || saving) return;
+                            event.preventDefault();
+                            event.currentTarget.focus();
+                            event.currentTarget.setPointerCapture(event.pointerId);
+                            drag.current = { selected: !selected, changes: {} };
+                            setDragSlots(currentPerson.slots || {});
+                            paintSlot(key);
+                          }}
+                          onClick={(event) => {
+                            if (event.detail === 0) void saveSlots({ [key]: selected ? null : true });
+                          }}
                         >
                           {selected ? '✓ ' : ''}{count}/{people.length}
                         </button>
